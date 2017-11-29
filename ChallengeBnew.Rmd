@@ -1,0 +1,197 @@
+# challenge-b-rprog-m1-eco
+
+---
+title: "ChallengeB"
+output: html_document
+---
+TASK 1B: Prediction House prices in Ames, Iowa
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+## Load datas and packages
+```{r Preparations1, include=FALSE, eval = FALSE, echo=TRUE}
+
+install.packages("tidyverse")
+install.packages("readr")
+install.packages("randomForest")
+install.packages("np")
+
+```
+
+```{r Preparations1bis, include=FALSE, echo=TRUE}
+library(randomForest)
+library(tidyverse)
+library(readr)
+library(dplyr) 
+```
+
+# We choose a ML technique : randomForest
+
+## Prepare the datas
+
+```{r Praparation2 : missing values, include=FALSE}
+train<- read_csv("~/Rprog/train.csv")
+test<- read_csv(file = "~/Rprog/test.csv")
+
+colnames(train)
+Train2<-train[-1] # -> Here we remove id column
+
+remove.vars <- Train2 %>% summarise_all(.funs = funs(sum(is.na(.)))) %>% gather(key = "feature", value = "missing.observations") %>% filter(missing.observations > 100) %>% select(feature) %>% unlist 
+# -> Here we remove variables with a lot of missing observations (as we learned is ChallengeA)
+
+Train2 <- Train2 %>% select(- one_of(remove.vars))
+
+Train2 %>% summarise_all(.funs = funs(sum(is.na(.)))) %>% gather(key = "feature", value = "missing.observations") %>% filter(missing.observations > 0)
+# -> We remove missing observations (as we learned in challenge A)
+
+Train2 <-Train2 %>% filter(is.na(GarageType) == FALSE, is.na(MasVnrType) == FALSE, is.na(BsmtFinType2) == FALSE, is.na(BsmtExposure) == FALSE, is.na(Electrical) == FALSE)
+# -> We remove missing observations in some specific variables
+```
+
+```{r Praparation3 : convert character to factors, include=FALSE}
+Train3 <-Train2%>%mutate_if(is.character,as.factor)
+# -> we mutate character variable as factor
+```
+
+```{r Praparation4 : No illegal names, include=FALSE}
+names(Train3)<-make.names(names(Train3))  
+# ->  
+```
+## LM
+```{r RandomForest, include=TRUE}
+set.seed(1)
+Train.fit<-randomForest(SalePrice~., data=Train3)
+print(Train.fit)
+```
+ We train the chosen technique on the training data
+
+## Prediction 
+```{r Prediction, include=TRUE}
+colnames(test)
+
+test<-test[-1] #remove id variable
+predict.RandomForest<-predict(Train.fit, data = test, type="response")
+LinearRegression<-lm(data=Train3, SalePrice~.)
+predict.LinearRegression<-predict(LinearRegression,data = test)
+summary(predict.RandomForest)
+summary(predict.LinearRegression)
+
+```
+
+
+-> Les donn?es sont plus centr?es autour de la moyenne avec randomForest.
+
+# Task 2B: Overfitting in Machine Learning
+
+## Challenge A dataset and packages we need 
+```{r Require Challenge A Task2, include =FALSE}
+# Packages
+library(tidyverse)
+library(caret)
+library(np)
+
+### Model : y = x^3+z , x and z normally distributed : mean = 0 and standard deviation = 1
+set.seed(1)
+Nsim <- 150
+b <- c(0,1)
+x0 <- rep(1, Nsim)
+x1 <- rnorm(n = Nsim)
+
+X <- cbind(x0, x1^3)
+y.true <- X %*% b
+
+eps <- rnorm(n = Nsim)
+y <- X %*% b + eps
+
+df <- tbl_df(y[,1]) %>% rename(y = value) %>% bind_cols(tbl_df(x1)) %>% rename(x = value) %>% bind_cols(tbl_df(y.true[,1])) %>% rename(y.true = value)
+
+training.index <- createDataPartition(y = y, times = 1, p = 0.8)
+df <- df %>% mutate(which.data = ifelse(1:n() %in% training.index$Resample1, "training", "test"))
+
+training <- df %>% filter(which.data == "training")
+testing <- df %>% filter(which.data == "test")
+lm.fit <- lm(y ~ x, data = training)
+summary(lm.fit)
+
+df <- df %>% mutate(y.lm = predict(object = lm.fit, newdata = df))
+training <- training %>% mutate(y.lm = predict(object = lm.fit))
+```
+We just copied and pasted what we did dring the challenge A
+
+# Step 1
+## Low-flexibility local linear model
+
+```{r Low-flexibility local linear model, include=TRUE}
+ll.fit.lowflex <- npreg(y ~ x, data = training, method = "ll", bws = 0.5)
+summary(ll.fit.lowflex)
+
+```
+We create a low flexibility local linear model such that it fit perfectly with all the data of the set training1 .
+
+# Step 2
+## High-flexibility Local model
+```{r High-flexibility local linear model, include=TRUE}
+ll.fit.highflex<-npreg(y~x,bws=0.01, data=training, regtype="ll")
+summary(ll.fit.highflex)
+```
+We create a higher flexibility local linear model such that it can be true with other datas than the dataset.
+
+# Step 3
+
+```{r Plot with training datas, include=TRUE}
+y.high = predict(object = ll.fit.highflex, newdata = training)
+y.low = predict(object = ll.fit.lowflex, newdata = training)
+
+ggplot(training) + geom_point (data = training,aes(x,y)) + geom_line(aes(x,y.true), colour = "black", size = 0.8) + geom_line (mapping = aes(x = x, y = y.high), colour = "blue") + geom_line (mapping = aes(x = x, y = y.low), colour = "red")
+```
+We plot the tow models to compare them.
+
+#Step 4
+
+#Step 5
+```{r Plot with testing datas, include=TRUE}
+
+##repete the same 3 first steps on testing
+
+ll.fit.lowflex<-npreg(y~x, bws=0.5, data=test, regtype="ll")
+summary(ll.fit.lowflex)
+
+ll.fit.highflex<-npreg(y~x, bws=0.01, data=test, regtype="ll")
+summary(ll.fit.highflex)
+
+y.high.2 = predict(object = ll.fit.highflex, newdata = test)
+y.low.2 = predict(object = ll.fit.lowflex, newdata = test)
+
+ggplot(test) + geom_point (data = test,aes(x,y)) + geom_line(aes(x,y.true), colour = "black", size = 0.8) + geom_line (mapping = aes(x = x, y = y.high.2), colour = "blue") + geom_line (mapping = aes(x = x, y = y.low.2), colour = "red")
+
+```
+# Step 6
+```{r Create a vector of bandwidth, include=TRUE}
+bw <- seq(0.01, 0.5, by = 0.001)
+```
+
+#Step 7
+```{r , include=FALSE}
+llestime<-lapply(X = bw, FUN = function(bw) {npreg(y ~ x, data = training1, method = "ll", bws = bw)})
+```
+
+#Step 8
+```{r compute MSE on training data, include=FALSE}
+mse.training1 <- function(fit.model){
+  predictions <- predict(object = fit.model, newdata = training1)
+  training1 %>% mutate(squared.error = (y - predictions)^2) %>% summarize(mse = mean(squared.error))}
+mse.train.results <- unlist(lapply(X = llestime, FUN = mse.training1))
+```
+#Step 9
+```{r compute MSE on testing data, include=FALSE}
+mse.testing <- function(fit.model){
+  predictions <- predict(object = fit.model, newdata = testing)
+  training1 %>% mutate(squared.error = (y - predictions)^2) %>% summarize(mse = mean(squared.error))}
+mse.test.results <- unlist(lapply(X = llestime, FUN = mse.testing))
+```
+#Step10
+```{r Plot both, include=TRUE}
+mse.df <- tbl_df(data.frame(bandwidth = bw, mse.training1 = mse.train.results, mse.testing = mse.test.results))
+ggplot(mse.df)+geom_line(mapping=aes(bw,mse.training1),colour="blue")+geom_line(mapping=aes(bw,mse.testing),colour="orange")
+```
+ggplot()+geom_line(mapping=aes(bw,mse.train.results),colour="blue")+geom_line(mapping=aes(bw,mse.test.results),colour="orange")
