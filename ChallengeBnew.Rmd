@@ -4,82 +4,84 @@
 title: "ChallengeB"
 output: html_document
 ---
-TASK 1B: Prediction House prices in Ames, Iowa
+# TASK 1B: Prediction House prices in Ames, Iowa
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 ## Load datas and packages
-```{r Preparations1, include=FALSE, eval = FALSE, echo=TRUE}
-
-install.packages("tidyverse")
-install.packages("readr")
-install.packages("randomForest")
-install.packages("np")
-
+```{r install packages, include=FALSE}
+install.packages("randomForest","readr","tidyverse","dplyr","caret")
 ```
-
-```{r Preparations1bis, include=FALSE, echo=TRUE}
-library(randomForest)
+```{r load packages, include=FALSE}
 library(tidyverse)
 library(readr)
-library(dplyr) 
+library(randomForest)
+library(dplyr)
+library(caret)
 ```
-
+```{r load data, include=FALSE}
+train <- read_csv("C:/Users/R?gine CARDONNE/Downloads/train.csv")
+test <- read_csv(file = "C:/Users/R?gine CARDONNE/Downloads/test.csv")
+```
 # We choose a ML technique : randomForest
 
 ## Prepare the datas
-
-```{r Praparation2 : missing values, include=FALSE}
-train<- read_csv("~/Rprog/train.csv")
-test<- read_csv(file = "~/Rprog/test.csv")
-
+```{r Praparation 1 : missing values and observations, include=FALSE}
 colnames(train)
-Train2<-train[-1] # -> Here we remove id column
 
-remove.vars <- Train2 %>% summarise_all(.funs = funs(sum(is.na(.)))) %>% gather(key = "feature", value = "missing.observations") %>% filter(missing.observations > 100) %>% select(feature) %>% unlist 
-# -> Here we remove variables with a lot of missing observations (as we learned is ChallengeA)
+Train2<-train[-1] 
+```
+We remove id column
 
+```{r Praparation 2 : missing values, include=FALSE}
+remove.vars <- Train2 %>% summarise_all(.funs = funs(sum(is.na(.)))) %>% gather(key = "feature", value = "missing.observations") %>% filter(missing.observations > 100) %>% select(feature) %>% unlist
 Train2 <- Train2 %>% select(- one_of(remove.vars))
+```
+We remove variables with a lot of missing observations (as we learned is ChallengeA)
 
+```{r Praparation 3 : missing values and observations, include=FALSE}
 Train2 %>% summarise_all(.funs = funs(sum(is.na(.)))) %>% gather(key = "feature", value = "missing.observations") %>% filter(missing.observations > 0)
-# -> We remove missing observations (as we learned in challenge A)
-
+ 
 Train2 <-Train2 %>% filter(is.na(GarageType) == FALSE, is.na(MasVnrType) == FALSE, is.na(BsmtFinType2) == FALSE, is.na(BsmtExposure) == FALSE, is.na(Electrical) == FALSE)
-# -> We remove missing observations in some specific variables
 ```
+We remove missing observations
 
-```{r Praparation3 : convert character to factors, include=FALSE}
+```{r Praparation 4 : convert character to factors, include=FALSE}
 Train3 <-Train2%>%mutate_if(is.character,as.factor)
-# -> we mutate character variable as factor
+```
+we convert characters to factors
+```{r Praparation 5 : No illegal names, include=FALSE}
+names(Train3)<-make.names(names(Train3))  
 ```
 
-```{r Praparation4 : No illegal names, include=FALSE}
-names(Train3)<-make.names(names(Train3))  
-# ->  
-```
-## LM
+
+## Random Forest Model
 ```{r RandomForest, include=TRUE}
 set.seed(1)
-Train.fit<-randomForest(SalePrice~., data=Train3)
-print(Train.fit)
+
+Train.fit<-randomForest(Train3$SalePrice~., data=Train3)
 ```
- We train the chosen technique on the training data
+ We train the chosen technique on the training data here, Random Forest
 
-## Prediction 
-```{r Prediction, include=TRUE}
-colnames(test)
-
-test<-test[-1] #remove id variable
-predict.RandomForest<-predict(Train.fit, data = test, type="response")
-LinearRegression<-lm(data=Train3, SalePrice~.)
-predict.LinearRegression<-predict(LinearRegression,data = test)
-summary(predict.RandomForest)
-summary(predict.LinearRegression)
-
+## Prediction on test data
+```{r Prediction 1, include=FALSE}
+Predict.RandomForest<-predict(Train.fit,data=test) 
 ```
+prediction with RandomForest
+```{r Prediction 2, include=FALSE}
+Train.lm<-lm(data=Train3,SalePrice~.) 
+predict.lr<-print(train.lm,data=test)
+```
+Prediction with a a linear regression of our choice here Linear model of SalePrice on all the variables
+```{r Prediction comparison, include=TRUE}
+summary(Predict.RandomForest) 
+summary(predict.lr)
+```
+we use the summary of the prediction to compare the two model
+ Les données sont plus centrées autour de la moyenne avec randomForest.
+ 
 
 
--> Les donn?es sont plus centr?es autour de la moyenne avec randomForest.
 
 # Task 2B: Overfitting in Machine Learning
 
